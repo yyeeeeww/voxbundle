@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Vox Bundle</title>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+    <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+    <choices-outline>
+        <line choice="default">
+            <line choice="com.voxbundle.au"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="com.voxbundle.au" visible="false">
+        <pkg-ref id="com.voxbundle.au"/>
+    </choice>
+    <pkg-ref id="com.voxbundle.au" version="__VERSION__" onConclusion="none">VoxBundle-AU.pkg</pkg-ref>
+</installer-gui-script>

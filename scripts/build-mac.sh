@@ -1,7 +1,7 @@
 #!/bin/bash
-# One-shot build on a Mac: universal AU plugins -> dist/VoxBundle-<version>-AU.dmg
-#   bash scripts/build-mac.sh            build + DMG
-#   bash scripts/build-mac.sh --install  build + DMG + install for the current user
+# One-shot build on a Mac: universal AU plugins -> dist/VoxBundle-<version>.pkg / .dmg
+#   bash scripts/build-mac.sh            build the installer
+#   bash scripts/build-mac.sh --install  build it and run it (asks for your password)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -20,5 +20,5 @@ cmake --build build-mac --config Release -j "$JOBS"
 bash packaging/make-dmg.sh build-mac
 
 if [ "${1:-}" = "--install" ]; then
-    bash dist/dmg/VoxBundle/install.command
+    sudo installer -pkg dist/VoxBundle-*.pkg -target /
 fi

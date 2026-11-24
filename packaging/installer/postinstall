@@ -1,0 +1,9 @@
+#!/bin/bash
+# Runs as root after the Vox Bundle package is installed.
+DEST="/Library/Audio/Plug-Ins/Components"
+for c in "$DEST"/Vox*.component; do
+    xattr -dr com.apple.quarantine "$c" 2>/dev/null || true
+done
+# Make macOS rebuild its Audio Unit cache so hosts see the new plugins.
+killall -9 AudioComponentRegistrar 2>/dev/null || true
+exit 0

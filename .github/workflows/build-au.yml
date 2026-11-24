@@ -47,13 +47,13 @@ jobs:
       - name: Build
         run: cmake --build build --config Release -j 4
 
-      - name: Sign and pack DMG
+      - name: Build installer (.pkg + .dmg)
         run: bash packaging/make-dmg.sh build
 
-      - name: Validate with auval
+      - name: Install the .pkg and validate with auval
         run: |
-          mkdir -p ~/Library/Audio/Plug-Ins/Components
-          cp -R dist/dmg/VoxBundle/*.component ~/Library/Audio/Plug-Ins/Components/
+          sudo installer -pkg dist/VoxBundle-*.pkg -target /
+          ls -la /Library/Audio/Plug-Ins/Components | grep Vox
           killall -9 AudioComponentRegistrar 2>/dev/null || true
           sleep 5
           auval -a | grep -i Vxbd || true
@@ -65,11 +65,15 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: VoxBundle-AU-macOS-dmg
-          path: dist/*.dmg
+          name: VoxBundle-installer
+          path: |
+            dist/*.dmg
+            dist/*.pkg
 
       - name: Publish release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.dmg
+          files: |
+            dist/*.dmg
+            dist/*.pkg

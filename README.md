@@ -27,19 +27,15 @@
 AU-коды: производитель `Vxbd`, плагины `Vcmp Veqz Vhet Vspc Vsyn Vdbl Vtun Vpit Vdvl Vadl`
 (все `aufx`, кроме VoxSynth: он `aumf`, принимает MIDI).
 
-## Установка из DMG
+## Установка
 
-1. Получите `VoxBundle-1.0.0-AU.dmg`: соберите на своём Mac (ниже) или скачайте из **Actions** (артефакт `VoxBundle-AU-macOS-dmg`) / **Releases**.
-2. Откройте DMG и выполните в Terminal:
+1. Скачайте `VoxBundle-1.0.0.dmg` из **Releases** (или из **Actions** → артефакт `VoxBundle-installer`).
+2. Откройте DMG и дважды кликните **Install Vox Bundle.pkg**. Установщик положит плагины в `/Library/Audio/Plug-Ins/Components`.
+   Установщик не подписан сертификатом Apple Developer, поэтому macOS один раз предупредит об этом:
+   *Системные настройки → Конфиденциальность и безопасность → «Всё равно открыть»*, затем запустите установщик снова.
+3. **FL Studio 26**: *Options → Manage plugins → Find plugins*. Плагины появятся у производителя «Vox Bundle».
 
-   ```bash
-   bash /Volumes/VoxBundle/install.command
-   ```
-
-   Скрипт копирует плагины в `~/Library/Audio/Plug-Ins/Components` и снимает карантин (плагины подписаны ad-hoc, без сертификата Apple).
-3. **FL Studio 26**: *Options → Manage plugins* → включите поиск AU → *Find plugins*. Плагины появятся у производителя «Vox Bundle».
-
-## Сборка DMG на своём Mac
+## Сборка установщика на своём Mac
 
 Нужны Xcode Command Line Tools и CMake:
 
@@ -57,7 +53,7 @@ brew install cmake
 bash scripts/build-mac.sh --install
 ```
 
-Скрипт соберёт все 10 плагинов (universal), положит DMG в `dist/` и сразу установит плагины (без `--install` только соберёт DMG).
+Скрипт соберёт все 10 плагинов (universal), сделает `dist/VoxBundle-1.0.0.pkg` и `.dmg` и сразу запустит установку (без `--install` только соберёт установщик).
 
 **VoxSynth** по умолчанию в режиме *drone*: держит аккорд сам, MIDI не нужен.
 Для игры нотами переключите *notes → MIDI*, в настройках обёртки плагина задайте MIDI input port,
@@ -91,7 +87,7 @@ cmake --build build --target VoxSelfTest && xvfb-run -a ./build/VoxSelfTest_arte
 сохранение и восстановление состояния, реальный RT60 ревёрба против ручки Decay,
 точность VoxTune и VoxPitch по высоте тона (погрешность ≤ 15 центов, на практике 0–4), скриншоты GUI.
 
-CI (`.github/workflows/build-au.yml`): на macOS universal-сборка, подпись, `auval` для всех 10 плагинов и DMG-артефакт; на Linux тот же self-test.
+CI (`.github/workflows/build-au.yml`): на macOS universal-сборка, подпись, установка собранного `.pkg`, `auval` для всех 10 плагинов, артефакт с `.dmg` и `.pkg`; на Linux тот же self-test.
 
 ## Структура
 
@@ -99,7 +95,7 @@ CI (`.github/workflows/build-au.yml`): на macOS universal-сборка, под
 shared/      DSP, pitch (YIN + гранулярный шифтер), параметры, базовый процессор с DEVIL, look&feel, редактор
 plugins/     по папке на плагин: Processor + Editor + Entry
 tests/       self-test
-packaging/   install.command и инструкция для архива
+packaging/   сборка установщика .pkg / .dmg
 ```
 
 JUCE 8 распространяется под AGPLv3 или коммерческой лицензией. Для личного использования ограничений нет.
