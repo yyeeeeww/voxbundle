@@ -35,7 +35,9 @@ chmod +x "$WORK/scripts/postinstall"
 pkgbuild --analyze --root "$WORK/root" "$WORK/components.plist"
 i=0
 while "$PLISTBUDDY" -c "Print :$i" "$WORK/components.plist" >/dev/null 2>&1; do
-    "$PLISTBUDDY" -c "Set :$i:BundleIsRelocatable false" "$WORK/components.plist"
+    # The key may or may not be present: drop it, then add it as false.
+    "$PLISTBUDDY" -c "Delete :$i:BundleIsRelocatable" "$WORK/components.plist" >/dev/null 2>&1 || true
+    "$PLISTBUDDY" -c "Add :$i:BundleIsRelocatable bool false" "$WORK/components.plist"
     i=$((i + 1))
 done
 pkgbuild --root "$WORK/root" \
