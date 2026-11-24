@@ -1,0 +1,91 @@
+name: Build AU bundle
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Fast DSP sanity check + GUI screenshots on Linux (no AU here, just the self-test).
+  selftest:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libasound2-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxcomposite-dev libxext-dev libfreetype-dev libfontconfig1-dev \
+            libgl1-mesa-dev xvfb
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVOX_BUILD_SELFTEST=ON
+
+      - name: Build self-test
+        run: cmake --build build --target VoxSelfTest -j4
+
+      - name: Run DSP self-test
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" ./build/VoxSelfTest_artefacts/Release/VoxSelfTest --shots screenshots
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/*.png
+
+  # The actual Audio Unit bundle: universal (arm64 + x86_64), ad-hoc signed, auval-validated.
+  build-au:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j 4
+
+      - name: Collect and sign components
+        run: |
+          mkdir -p dist/VoxBundle
+          for c in build/*_artefacts/Release/AU/*.component; do
+            cp -R "$c" dist/VoxBundle/
+          done
+          for c in dist/VoxBundle/*.component; do
+            codesign --force --deep --sign - "$c"
+            name=$(basename "$c" .component)
+            lipo -info "$c/Contents/MacOS/$name"
+          done
+          ls -la dist/VoxBundle
+
+      - name: Validate with auval
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R dist/VoxBundle/*.component ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          sleep 5
+          auval -a | grep -i Vxbd || true
+          for spec in "aufx Vcmp" "aufx Veqz" "aufx Vhet" "aufx Vspc" "aumf Vsyn" "aufx Vdbl" "aufx Vtun" "aufx Vpit" "aufx Vdvl" "aufx Vadl"; do
+            echo "::group::auval $spec"
+            auval -v $spec Vxbd
+            echo "::endgroup::"
+          done
+
+      - name: Package
+        run: |
+          cp packaging/install.command packaging/README-INSTALL.txt dist/VoxBundle/
+          chmod +x dist/VoxBundle/install.command
+          ditto -c -k --keepParent dist/VoxBundle VoxBundle-AU-macOS.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VoxBundle-AU-macOS
+          path: VoxBundle-AU-macOS.zip
+
+      - name: Publish release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: VoxBundle-AU-macOS.zip
