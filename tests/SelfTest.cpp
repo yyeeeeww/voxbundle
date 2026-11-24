@@ -350,7 +350,7 @@ void analyseReverb()
 
 
 
-#if VOX_HAS_VOXTUNE || VOX_HAS_VOXPITCH
+#if VOX_HAS_VOXTUNE || VOX_HAS_VOXPITCH || VOX_HAS_VOXSYNTH
 // Feeds a sawtooth at `inHz`, measures the output pitch with the shared YIN detector.
 float measureOutputPitch (vox::VoxProcessorBase& p, float inHz)
 {
@@ -405,6 +405,16 @@ void pitchAccuracy()
         }
     }
    #endif
+   #if VOX_HAS_VOXSYNTH
+    {
+        SynthProcessor sp;   // Follow, unison chord, root C3 => sung A3 should come out as A2
+        auto set = [&sp] (const char* id, float v) { auto* q = sp.apvts.getParameter (id); q->setValueNotifyingHost (q->convertTo0to1 (v)); };
+        set ("source", 1.0f); set ("chord", 0.0f); set ("droneNote", 48.0f); set ("detune", 0.0f); set ("noise", 0.0f); set ("sibilance", 0.0f);
+        const float out = measureOutputPitch (sp, 220.0f);
+        std::printf ("  VoxSynth follow: sung 220 Hz -> carrier %.1f Hz (expect 110.0, err %.1f ct)\n", out, cents (out, 110.0f));
+        check (std::abs (cents (out, 110.0f)) < 25.0f, "VoxSynth follow mode does not track the voice");
+    }
+   #endif
 }
 #endif
 
@@ -454,7 +464,7 @@ int main (int argc, char** argv)
    #if VOX_HAS_VOXSPACE
     analyseReverb();
    #endif
-   #if VOX_HAS_VOXTUNE || VOX_HAS_VOXPITCH
+   #if VOX_HAS_VOXTUNE || VOX_HAS_VOXPITCH || VOX_HAS_VOXSYNTH
     pitchAccuracy();
    #endif
 

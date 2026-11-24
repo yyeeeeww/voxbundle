@@ -57,7 +57,7 @@ jobs:
           killall -9 AudioComponentRegistrar 2>/dev/null || true
           sleep 5
           auval -a | grep -i Vxbd || true
-          for spec in "aufx Vcmp" "aufx Veqz" "aufx Vhet" "aufx Vspc" "aumf Vsyn" "aufx Vdbl" "aufx Vtun" "aufx Vpit" "aufx Vdvl" "aufx Vadl"; do
+          for spec in "aufx Vcmp" "aufx Veqz" "aufx Vhet" "aufx Vspc" "aufx Vsyn" "aufx Vdbl" "aufx Vtun" "aufx Vpit" "aufx Vdvl" "aufx Vadl"; do
             echo "::group::auval $spec"
             auval -v $spec Vxbd
             echo "::endgroup::"

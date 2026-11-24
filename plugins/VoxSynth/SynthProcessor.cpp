@@ -46,7 +46,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout SynthProcessor::createLayout
     };
 
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> p;
-    p.push_back (makeChoice ("source", "Notes", { "Drone", "MIDI" }, 0));
+    p.push_back (makeChoice ("source", "Notes", { "Drone", "Follow" }, 0));
     p.push_back (makeInt ("droneNote", "Root", 36, 72, 48, [] (int n) { return noteName (n); }));
     p.push_back (makeChoice ("chord", "Chord", chordNames, 4));
     p.push_back (makeFloat ("wave", "Wave", 0.0f, 1.0f, 0.0f, Unit::Plain, 0.0f, waveText));
@@ -90,7 +90,8 @@ void SynthProcessor::prepareToPlay (double sampleRate, int)
 
     for (auto& v : voices) v = Voice();
     lastSource = lastDroneRoot = lastChord = -1;
-    bendRatio = 1.0f;
+    detector.prepare (fs);
+    followRoot = followNote = -1;
 
     for (auto* s : { &mixSm, &outSm, &sibSm, &noiseSm })
         s->reset (sampleRate, 0.03);
@@ -144,28 +145,32 @@ void SynthProcessor::allOff()
     for (auto& v : voices) v.gate = false;
 }
 
-void SynthProcessor::updateDrone()
+void SynthProcessor::updateNotes()
 {
-    const int src = (int) *source, root = (int) *droneNote, ch = juce::jlimit (0, (int) chordIntervals.size() - 1, (int) *chord);
+    const int src = (int) *source;
+    const int ch = juce::jlimit (0, (int) chordIntervals.size() - 1, (int) *chord);
+    const int root = (src == 1 && followRoot >= 0) ? followRoot : (int) *droneNote;
     if (src == lastSource && root == lastDroneRoot && ch == lastChord)
         return;
-    if (src != lastSource)
-        allOff();
     lastSource = src; lastDroneRoot = root; lastChord = ch;
-    if (src != 0)
-        return;
 
     const auto& iv = chordIntervals[(size_t) ch];
     for (auto& v : voices)
         if (v.gate && std::find (iv.begin(), iv.end(), v.note - root) == iv.end())
             v.gate = false;
     for (int i : iv)
-        noteOn (root + i);
+    {
+        bool playing = false;
+        for (auto& v : voices)
+            playing |= (v.gate && v.note == root + i);
+        if (! playing)
+            noteOn (root + i);
+    }
 }
 
 float SynthProcessor::renderVoice (Voice& v, float waveMix, float detuneRatio, bool hell) noexcept
 {
-    const float f = 440.0f * std::pow (2.0f, (float) (v.note - 69) / 12.0f) * bendRatio;
+    const float f = 440.0f * std::pow (2.0f, (float) (v.note - 69) / 12.0f);
     const float dt1 = juce::jmin (0.45f, f / (float) fs), dt2 = juce::jmin (0.45f, f * detuneRatio / (float) fs);
     const float s1 = (1.0f - waveMix) * blepSaw (v.phase1, dt1) + waveMix * blepPulse (v.phase1, dt1);
     const float s2 = (1.0f - waveMix) * blepSaw (v.phase2, dt2) + waveMix * blepPulse (v.phase2, dt2);
@@ -180,17 +185,17 @@ float SynthProcessor::renderVoice (Voice& v, float waveMix, float detuneRatio, b
     return 0.4f * (s1 + s2) + 0.5f * sub;
 }
 
-void SynthProcessor::process (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi, int nch)
+void SynthProcessor::process (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&, int nch)
 {
     const int n = buffer.getNumSamples();
     auto* L = buffer.getWritePointer (0);
     auto* R = nch > 1 ? buffer.getWritePointer (1) : nullptr;
 
-    updateDrone();
+    updateNotes();
     const bool hell = devil();
     updateCarrierFilters (*formant - (hell ? 5.0f : 0.0f));
 
-    const bool midiMode = (int) *source == 1;
+    const bool follow = (int) *source == 1;
     const float waveMix = *wave, detuneRatio = std::pow (2.0f, *detune / 1200.0f);
     const float attInc = 1.0f / juce::jmax (1.0f, *attack * 0.001f * (float) fs);
     const float relCoef = timeCoef (*release * 0.001 / 4.6, fs);   // ~-40 dB after `release`
@@ -206,25 +211,30 @@ void SynthProcessor::process (juce::AudioBuffer<float>& buffer, juce::MidiBuffer
         voices[v].pan = spreadAmt * ((v % 2 == 0) ? -1.0f : 1.0f) * (0.4f + 0.6f * (float) ((v / 2) % 2));
 
     float bandPeak[numBands] {};
-    auto midiIt = midi.cbegin();
     std::uniform_real_distribution<float> uni (-1.0f, 1.0f);
 
     for (int i = 0; i < n; ++i)
     {
-        // Sample-accurate MIDI
-        for (; midiIt != midi.cend() && (*midiIt).samplePosition <= i; ++midiIt)
-        {
-            if (! midiMode) continue;
-            const auto msg = (*midiIt).getMessage();
-            if (msg.isNoteOn()) noteOn (msg.getNoteNumber());
-            else if (msg.isNoteOff()) noteOff (msg.getNoteNumber());
-            else if (msg.isAllNotesOff() || msg.isAllSoundOff()) allOff();
-            else if (msg.isPitchWheel()) bendRatio = std::pow (2.0f, (float) (msg.getPitchWheelValue() - 8192) / 8192.0f * 2.0f / 12.0f);
-        }
-
         const float xl = L[i];
         const float xr = R != nullptr ? R[i] : xl;
         const float mod = 0.5f * (xl + xr);
+
+        // Follow: root the chord on the sung note, kept in the register set by Root.
+        if (follow && detector.push (mod))
+        {
+            const float f0 = detector.frequency();
+            if (f0 > 0.0f)
+            {
+                const float m = 69.0f + 12.0f * std::log2 (f0 / 440.0f);
+                if (followNote < 0 || std::abs (m - (float) followNote) > 0.65f)
+                {
+                    followNote = juce::roundToInt (m);
+                    const int target = (int) *droneNote;
+                    followRoot = followNote + 12 * juce::roundToInt ((float) (target - followNote) / 12.0f);
+                    updateNotes();
+                }
+            }
+        }
 
         // --- Carrier: polyphonic synth, panned per voice, plus gated noise
         float cl = 0.0f, cr = 0.0f, gate = 0.0f;

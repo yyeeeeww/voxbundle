@@ -40,9 +40,9 @@ public:
         for (int n : notes)
             if (n >= 0) held.addIfNotAlreadyThere (noteName (n));
 
-        const bool midi = (int) *proc.source == 1;
+        const bool follow = (int) *proc.source == 1;
         const auto info = a.reduced (8.0f, 6.0f);
-        label (g, midi ? "midi" : "drone", info, juce::Justification::topLeft, Colours::text);
+        label (g, follow ? "follow" : "drone", info, juce::Justification::topLeft, Colours::text);
         label (g, held.isEmpty() ? "-" : held.joinIntoString (" "), info, juce::Justification::topRight, Colours::red);
 
         // Band levels as hairlines

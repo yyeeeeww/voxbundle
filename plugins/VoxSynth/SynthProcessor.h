@@ -1,9 +1,11 @@
 #pragma once
 #include "VoxBase.h"
+#include "VoxPitch.h"
 #include <random>
 
 // Vocoder: the incoming voice (modulator) shapes a built-in polyphonic synth (carrier).
-// Notes come from MIDI, or from the internal "Drone" chord when no MIDI is routed.
+// Notes come from the internal chord: fixed ("Drone") or rooted on the sung pitch ("Follow").
+// Registered as a plain AU effect (aufx) so every host, FL Studio included, can load it.
 class SynthProcessor : public vox::VoxProcessorBase
 {
 public:
@@ -17,7 +19,6 @@ public:
     void prepareToPlay (double sampleRate, int blockSize) override;
     void process (juce::AudioBuffer<float>&, juce::MidiBuffer&, int numChannels) override;
     juce::AudioProcessorEditor* createEditor() override;
-    bool acceptsMidi() const override { return true; }
     double getTailLengthSeconds() const override { return 1.0; }
 
     static float bandFrequency (int b) noexcept
@@ -44,14 +45,15 @@ private:
     void noteOn (int note);
     void noteOff (int note);
     void allOff();
-    void updateDrone();
+    void updateNotes();
     void updateCarrierFilters (float formantSemis);
     float renderVoice (Voice& v, float wave, float detuneRatio, bool hell) noexcept;
 
     double fs = 44100.0;
     Voice voices[numVoices];
     juce::uint32 ageCounter = 0;
-    float bendRatio = 1.0f;
+    vox::PitchDetector detector;
+    int followRoot = -1, followNote = -1;
     int lastSource = -1, lastDroneRoot = -1, lastChord = -1;
     float lastFormant = 1000.0f;
 
