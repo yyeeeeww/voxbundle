@@ -27,22 +27,37 @@
 AU-коды: производитель `Vxbd`, плагины `Vcmp Veqz Vhet Vspc Vsyn Vdbl Vtun Vpit Vdvl Vadl`
 (все `aufx`, кроме VoxSynth: он `aumf`, принимает MIDI).
 
-## Установка
+## Установка из DMG
 
-1. В репозитории: **Actions** → последний успешный **Build AU bundle** → артефакт `VoxBundle-AU-macOS`
-   (или zip в **Releases**, если запушен тег `v*`).
-2. Распакуйте и выполните в Terminal:
-
-   ```bash
-   cd ~/Downloads/VoxBundle
-   ```
+1. Получите `VoxBundle-1.0.0-AU.dmg`: соберите на своём Mac (ниже) или скачайте из **Actions** (артефакт `VoxBundle-AU-macOS-dmg`) / **Releases**.
+2. Откройте DMG и выполните в Terminal:
 
    ```bash
-   xattr -dr com.apple.quarantine . && ./install.command
+   bash /Volumes/VoxBundle/install.command
    ```
 
-   Плагины подписаны ad-hoc, без сертификата Apple, поэтому снимать карантин обязательно.
+   Скрипт копирует плагины в `~/Library/Audio/Plug-Ins/Components` и снимает карантин (плагины подписаны ad-hoc, без сертификата Apple).
 3. **FL Studio 26**: *Options → Manage plugins* → включите поиск AU → *Find plugins*. Плагины появятся у производителя «Vox Bundle».
+
+## Сборка DMG на своём Mac
+
+Нужны Xcode Command Line Tools и CMake:
+
+```bash
+xcode-select --install
+```
+
+```bash
+brew install cmake
+```
+
+Затем из папки с исходниками:
+
+```bash
+bash scripts/build-mac.sh --install
+```
+
+Скрипт соберёт все 10 плагинов (universal), положит DMG в `dist/` и сразу установит плагины (без `--install` только соберёт DMG).
 
 **VoxSynth** по умолчанию в режиме *drone*: держит аккорд сам, MIDI не нужен.
 Для игры нотами переключите *notes → MIDI*, в настройках обёртки плагина задайте MIDI input port,
@@ -50,7 +65,7 @@ AU-коды: производитель `Vxbd`, плагины `Vcmp Veqz Vhet V
 
 **VoxTune / VoxPitch** сообщают хосту свою задержку (~12–15 мс), FL Studio компенсирует её автоматически.
 
-## Сборка
+## Ручная сборка
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -76,7 +91,7 @@ cmake --build build --target VoxSelfTest && xvfb-run -a ./build/VoxSelfTest_arte
 сохранение и восстановление состояния, реальный RT60 ревёрба против ручки Decay,
 точность VoxTune и VoxPitch по высоте тона (погрешность ≤ 15 центов, на практике 0–4), скриншоты GUI.
 
-CI (`.github/workflows/build-au.yml`): на macOS universal-сборка, подпись, `auval` для всех 10 плагинов и zip-артефакт; на Linux тот же self-test.
+CI (`.github/workflows/build-au.yml`): на macOS universal-сборка, подпись, `auval` для всех 10 плагинов и DMG-артефакт; на Linux тот же self-test.
 
 ## Структура
 

@@ -1,10 +1,12 @@
 VOX BUNDLE - 10 vocal Audio Units for macOS (Apple Silicon + Intel)
 
-Установка (Terminal, из папки с распакованным архивом):
+УСТАНОВКА
+Откройте Terminal и выполните (DMG должен быть открыт):
 
-    cd ~/Downloads/VoxBundle
-    xattr -dr com.apple.quarantine .
-    ./install.command
+    bash /Volumes/VoxBundle/install.command
+
+Скрипт скопирует плагины в ~/Library/Audio/Plug-Ins/Components и снимет
+карантин macOS (плагины подписаны ad-hoc, без сертификата Apple).
 
 Затем в FL Studio: Options > Manage plugins > Find plugins (AU).
 Плагины появятся у производителя "Vox Bundle".

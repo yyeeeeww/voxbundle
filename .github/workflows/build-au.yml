@@ -47,23 +47,13 @@ jobs:
       - name: Build
         run: cmake --build build --config Release -j 4
 
-      - name: Collect and sign components
-        run: |
-          mkdir -p dist/VoxBundle
-          for c in build/*_artefacts/Release/AU/*.component; do
-            cp -R "$c" dist/VoxBundle/
-          done
-          for c in dist/VoxBundle/*.component; do
-            codesign --force --deep --sign - "$c"
-            name=$(basename "$c" .component)
-            lipo -info "$c/Contents/MacOS/$name"
-          done
-          ls -la dist/VoxBundle
+      - name: Sign and pack DMG
+        run: bash packaging/make-dmg.sh build
 
       - name: Validate with auval
         run: |
           mkdir -p ~/Library/Audio/Plug-Ins/Components
-          cp -R dist/VoxBundle/*.component ~/Library/Audio/Plug-Ins/Components/
+          cp -R dist/dmg/VoxBundle/*.component ~/Library/Audio/Plug-Ins/Components/
           killall -9 AudioComponentRegistrar 2>/dev/null || true
           sleep 5
           auval -a | grep -i Vxbd || true
@@ -73,19 +63,13 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Package
-        run: |
-          cp packaging/install.command packaging/README-INSTALL.txt dist/VoxBundle/
-          chmod +x dist/VoxBundle/install.command
-          ditto -c -k --keepParent dist/VoxBundle VoxBundle-AU-macOS.zip
-
       - uses: actions/upload-artifact@v4
         with:
-          name: VoxBundle-AU-macOS
-          path: VoxBundle-AU-macOS.zip
+          name: VoxBundle-AU-macOS-dmg
+          path: dist/*.dmg
 
       - name: Publish release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: VoxBundle-AU-macOS.zip
+          files: dist/*.dmg
